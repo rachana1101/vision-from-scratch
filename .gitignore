@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# specific to this repo
+data/
+*.jpg
+*.jpeg
+*.png
+*.heic
