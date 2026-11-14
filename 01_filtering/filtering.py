@@ -12,9 +12,9 @@ def load(path):
     image = cv.imread(path)
     if image is None:
         raise FileNotFoundError(f"Image not found at path: {path}")
-    print(f"Image shape: {image.shape}")      # (rows=H, cols=W, channels)
-    print(f"Image data type: {image.dtype}")  # uint8: 0..255
-    show("Loaded Image", image)
+    # print(f"Image shape: {image.shape}")      # (rows=H, cols=W, channels)
+    # print(f"Image data type: {image.dtype}")  # uint8: 0..255
+    # show("Loaded Image", image)
     return image
 
 
@@ -119,14 +119,20 @@ def impulse_response():
 #         np.pad(mode='symmetric') == OpenCV BORDER_REFLECT (repeats the edge). Print one padded row to confirm.
 def pad_and_blur(I, mode):
     I = np.array(I).astype(np.float32)
-    padded = np.zeros((I.shape[0]+2, I.shape[0]+2), dtype=np.float32)
+    padded = np.zeros((I.shape[0]+2, I.shape[1]+2), dtype=np.float32)
 
-    for i in range(0, I.shape[0]):
-        for j in range(0, I.shape[1]):                        
+    for i in range(1, I.shape[0]):
+        for j in range(1, I.shape[1]):                        
             padded[i+1, j+1] = I[i, j]
             
-    print("Padded Image:\n", padded)
-    return padded.astype(np.uint8)
+    
+    if mode == 'reflect':
+        padded[:, 0] = padded[:, 2]
+        padded[:, -1] = padded[:, -3]   
+        padded[0, :] = padded[2, :]
+        padded[-1, :] = padded[-3, :]
+        
+    return box_blur_loop(padded)
 
 # Cell 3: Box-blur every interior pixel with a loop
 # Loop only over pixels whose full 3×3 window fits inside the image. 
@@ -172,8 +178,6 @@ def build_and_print(I):
 
 if __name__ == "__main__":
 
-
-
     I = [
          [10,  10,  10,  100, 100],
          [10,  10,  10,  100, 100],
@@ -187,4 +191,6 @@ if __name__ == "__main__":
     #box blur with real image
     show("Real blurred image", box_blur_loop(gray(load(IMAGE_PATH))).astype(np.uint8))
     #padding 
-    pad_and_blur(I, mode='reflect')
+    print(pad_and_blur(I, mode='reflect'))
+    print(cv.blur(np.array(I, dtype=np.float32), (3, 3)))
+    show("Box blur with reflect-101 padding", pad_and_blur(gray(load(IMAGE_PATH)), mode='reflect').astype(np.uint8))
