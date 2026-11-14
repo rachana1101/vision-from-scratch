@@ -225,3 +225,4 @@ data/
 *.jpeg
 *.png
 *.heic
+.venv-vfs/
