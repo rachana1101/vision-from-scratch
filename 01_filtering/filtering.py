@@ -3,6 +3,7 @@ import time
 import cv2 as cv
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.signal import convolve2d
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 IMAGE_PATH = os.path.join(ROOT, "..", "resources", "images", "cute_dog.jpg")
@@ -90,8 +91,30 @@ def separable_blur(I):
 #   Gaussian: 10  10  32.5  77.5  100   <- steeper ramp: smooths but keeps the edge sharper
 # The 2D kernel is np.outer of the 1D one: [[1,2,1],[2,4,2],[1,2,1]] / 16. Check it sums to 1.
 # Check against cv.GaussianBlur on a float32 copy of I (uint8 would round 32.5).
-def gaussian_by_hand(I):
-    pass
+def gaussian_by_hand(I, mode='reflect'):
+    I = np.array(I).astype(np.float32)
+    padded = np.zeros((I.shape[0]+2, I.shape[1]+2), dtype=np.float32)
+    kernel = np.array([[1, 2, 1],
+                        [2, 4, 2],
+                        [1, 2, 1]], dtype=np.float32)
+    for i in range(0, I.shape[0]):
+        for j in range(0, I.shape[1]):                        
+            padded[i+1, j+1] = I[i, j]
+
+    if mode == 'reflect':
+        padded[:, 0] = padded[:, 2]
+        padded[:, -1] = padded[:, -3]   
+        padded[0, :] = padded[2, :]
+        padded[-1, :] = padded[-3, :]
+    print("Padded image:\n", padded)            
+
+    blurred = np.zeros((padded.shape[0]-2, padded.shape[1]-2), dtype=np.float32)
+    for i in range(1, padded.shape[0]-1):
+        for j in range(1, padded.shape[1]-1):            
+            neighborhood = padded[i-1:i+2, j-1:j+2]      
+            blurred[i-1, j-1] = np.sum(neighborhood * kernel) / 16
+        
+    return blurred
 
 # Cell 5: Impulse response, and correlation vs convolution
 # New 5×5 image: all zeros, a single 1 at the center (2, 2).
@@ -104,8 +127,26 @@ def gaussian_by_hand(I):
 #   scipy.signal.convolve2d (convolution) → block comes out AS k:            1 2 3 / 4 5 6 / 7 8 9
 # Lesson: blurring a single bright pixel prints the kernel itself.
 # Box and Gaussian look the same flipped, so this only matters later (Sobel in 02).
-def impulse_response():
-    pass
+def impulse_response(IR):
+    IR = np.array(IR).astype(np.float32)
+    kernel = np.array([[1, 2, 3],
+                        [4, 5, 6],
+                        [7, 8, 9]], dtype=np.float32)
+    flipped_kernel = np.flip(kernel)
+    conv_output = np.zeros((IR.shape[0]-2, IR.shape[1]-2), dtype=np.float32)
+    correlation_output = np.zeros((IR.shape[0]-2, IR.shape[1]-2), dtype=np.float32)
+    
+    for i in range(1, IR.shape[0]-1):
+        for j in range(1, IR.shape[1]-1):
+            neighborhood = IR[i-1:i+2, j-1:j+2]
+            correlation_value = np.sum(neighborhood * kernel)
+            convolution_value = np.sum(neighborhood * flipped_kernel)
+            conv_output[i-1, j-1] = convolution_value
+            correlation_output[i-1, j-1] = correlation_value
+         
+    print("Correlation matches OpenCV:", np.allclose(correlation_output, cv.filter2D(IR, -1, kernel)[1:-1, 1:-1]))
+    print("Convolution matches scipy:", np.allclose(conv_output, convolve2d(IR, kernel, mode='valid')))            
+    return conv_output        
 
 # Cell 4: Borders (padding)
 # Pad I by 1 on each side, run the same loop, and get a full 5×5 output.
@@ -185,12 +226,26 @@ if __name__ == "__main__":
          [10,  10,  10,  100, 100],
          [10,  10,  10,  100, 100]
         ]
-    build_and_print(I)
-    blur(I)
-    box_blur_loop(I)
-    #box blur with real image
-    show("Real blurred image", box_blur_loop(gray(load(IMAGE_PATH))).astype(np.uint8))
-    #padding 
-    print(pad_and_blur(I, mode='reflect'))
-    print(cv.blur(np.array(I, dtype=np.float32), (3, 3)))
-    show("Box blur with reflect-101 padding", pad_and_blur(gray(load(IMAGE_PATH)), mode='reflect').astype(np.uint8))
+    # build_and_print(I)
+    # blur(I)
+    # box_blur_loop(I)
+    # #box blur with real image
+    # show("Real blurred image", box_blur_loop(gray(load(IMAGE_PATH))).astype(np.uint8))
+    # #padding 
+    # print(pad_and_blur(I, mode='reflect'))
+    # print(cv.blur(np.array(I, dtype=np.float32), (3, 3)))
+    # show("Box blur with reflect-101 padding", pad_and_blur(gray(load(IMAGE_PATH)), mode='reflect').astype(np.uint8))
+
+    # IR = [
+    #         [0,  0,  0,  0,  0],
+    #         [0,  0,  0,  0,  0],
+    #         [0,  0,  1,  0,  0],
+    #         [0,  0,  0,  0,  0],
+    #         [0,  0,  0,  0,  0]
+    #         ]
+    # print("Impulse response:", impulse_response(IR))
+    # show("Impulse response", impulse_response(gray(load(IMAGE_PATH))))
+
+    print("Gaussian blur by hand:", gaussian_by_hand(I))
+    print(np.allclose(gaussian_by_hand(I), cv.GaussianBlur(np.array(I, dtype=np.float32), (3, 3), 0)))  
+    show("Gaussian blur by hand", gaussian_by_hand(gray(load(IMAGE_PATH))).astype(np.uint8))
